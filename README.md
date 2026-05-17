@@ -1,0 +1,1 @@
+This mcp server is meant to be the memory of your personal AI. When you speak to ChatGPT or Gemini and you want a second opinion from claude (or any other AI provider for that matter) or vice versa, the "memories" of all your conversations can be saved on this server so you don't have to copy paste previous conversations into the new session.
