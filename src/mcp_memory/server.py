@@ -32,3 +32,6 @@ def search(query: str) -> str:
 
 
 init_db()
+
+if __name__ == "__main__":
+    mcp.run(transport="streamable-http")
