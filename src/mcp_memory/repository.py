@@ -1,57 +1,86 @@
 import sqlite3
 import uuid
+import os
+import psycopg2
+import json
+import boto3
 from datetime import datetime, timezone
+from psycopg2.extras import RealDictCursor
 
 from mcp_memory.models import Memory
 
-DB_PATH = "momories.db"
+DB_HOST = os.environ.get("DB_HOST", "localhost")
+DB_NAME = os.environ.get("DB_NAME", "postgres")
+DB_USER = os.environ.get("DB_USER", "postgres")
+DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
+_bedrock = boto3.client("bedrock-runtime", region_name="eu-central-1")
 
 
-def _connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+def _connect():
+    conn = psycopg2.connect(
+        host=DB_HOST, dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD
+    )
     return conn
+
+
+def _get_embedding(text: str) -> list[float]:
+    response = _bedrock.invoke_model(
+        modelId="amazon.titan-embed-text-v2:0",
+        body=json.dumps({"inputText": text}),
+    )
+    result = json.loads(response["body"].read())
+    return result["embedding"]
 
 
 def init_db() -> None:
     conn = _connect()
-    conn.execute("""
+    cur = conn.cursor()
+    cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS memories (
             memory_id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
             content TEXT NOT NULL,
             tags TEXT NOT NULL DEFAULT '',
-            created_at TEXT NOT NULL
+            created_at TIMESTAMPTZ NOT NULL,
+            embedding vector(1024)
         )
     """)
     conn.commit()
+    cur.close()
     conn.close()
 
 
 def save_memory(title: str, content: str, tags: list[str] | None = None) -> Memory:
     memory_id = str(uuid.uuid4())
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(timezone.utc)
     tags = tags or []
-
+    text = f"{title}\n{content}"
+    embedding = _get_embedding(text)
     conn = _connect()
-    conn.execute(
-        "INSERT INTO memories (memory_id, title, content, tags, created_at) VALUES (?, ?, ?, ?, ?)",
-        (memory_id, title, content, ",".join(tags), created_at),
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT INTO memories (memory_id, title, content, tags, created_at, embedding)
+           VALUES (%s, %s, %s, %s, %s, %s)""",
+        (memory_id, title, content, ",".join(tags), created_at, str(embedding)),
     )
     conn.commit()
+    cur.close()
     conn.close()
+
     return Memory(
         memory_id=memory_id,
         title=title,
         content=content,
         tags=tags,
-        created_at=datetime.fromisoformat(created_at),
+        created_at=created_at,
     )
 
 
 def fetch_memory(memory_id: str) -> Memory | None:
     conn = _connect()
-    row = conn.execute(
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    row = cur.execute(
         "SELECT * FROM memories WHERE memory_id = ?", (memory_id,)
     ).fetchone()
     conn.close()
@@ -63,11 +92,19 @@ def fetch_memory(memory_id: str) -> Memory | None:
 
 
 def search_memories(query: str) -> list[Memory]:
+    embedding = _get_embedding(query)
+
     conn = _connect()
-    rows = conn.execute(
-        "SELECT * FROM memories WHERE title LIKE ? OR content LIKE ? OR tags LIKE ?",
-        (f"%{query}%", f"%{query}%", f"%{query}%"),
-    ).fetchall()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute(
+        """SELECT *, embedding <=> %s AS distance
+           FROM memories
+           ORDER BY distance
+           LIMIT 5""",
+        (str(embedding),),
+    )
+    rows = cur.fetchall()
+    cur.close()
     conn.close()
 
     return [_row_to_memory(row) for row in rows]
