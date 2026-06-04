@@ -1,4 +1,3 @@
-import sqlite3
 import uuid
 import os
 import psycopg2
@@ -6,6 +5,7 @@ import json
 import boto3
 from datetime import datetime, timezone
 from psycopg2.extras import RealDictCursor
+from typing import Any, Mapping
 
 from mcp_memory.models import Memory
 
@@ -80,9 +80,9 @@ def save_memory(title: str, content: str, tags: list[str] | None = None) -> Memo
 def fetch_memory(memory_id: str) -> Memory | None:
     conn = _connect()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    row = cur.execute(
-        "SELECT * FROM memories WHERE memory_id = ?", (memory_id,)
-    ).fetchone()
+    cur.execute("SELECT * FROM memories WHERE memory_id = %s", (memory_id,))
+    row = cur.fetchone()
+    cur.close()
     conn.close()
 
     if row is None:
@@ -110,12 +110,13 @@ def search_memories(query: str) -> list[Memory]:
     return [_row_to_memory(row) for row in rows]
 
 
-def _row_to_memory(row: sqlite3.Row) -> Memory:
+def _row_to_memory(row: Mapping[str, Any]) -> Memory:
     tags_raw = row["tags"]
+    tags = [t.strips() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
     return Memory(
         memory_id=row["memory_id"],
         title=row["title"],
         content=row["content"],
-        tags=tags_raw.split(",") if tags_raw else [],
+        tags=tags,
         created_at=row["created_at"],
     )
