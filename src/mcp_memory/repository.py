@@ -112,7 +112,7 @@ def search_memories(query: str) -> list[Memory]:
 
 def _row_to_memory(row: Mapping[str, Any]) -> Memory:
     tags_raw = row["tags"]
-    tags = [t.strips() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
+    tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else []
     return Memory(
         memory_id=row["memory_id"],
         title=row["title"],
