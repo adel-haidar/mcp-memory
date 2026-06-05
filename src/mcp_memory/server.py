@@ -3,6 +3,12 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.auth.provider import TokenVerifier, AccessToken
 from mcp_memory.auth import validate_token as check_token
 from mcp_memory.repository import fetch_memory, init_db, save_memory, search_memories
+from mcp.server.auth.settings import AuthSettings
+
+auth_settings = AuthSettings(
+    issuer_url="https://adel-intelligence.com",
+    resource_server_url="https://adel-intelligence.com",
+)
 
 
 class PostgresTokenVerifier(TokenVerifier):
@@ -13,7 +19,7 @@ class PostgresTokenVerifier(TokenVerifier):
         return AccessToken(client_id=client_id, scopes=[])
 
 
-mcp = FastMCP("memory", token_verifier=PostgresTokenVerifier())
+mcp = FastMCP("memory", token_verifier=PostgresTokenVerifier(), auth=auth_settings)
 
 
 @mcp.tool()
