@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pydantic import BaseModel
 
 
 @dataclass
@@ -9,3 +10,8 @@ class Memory:
     tags: list[str] = field(default_factory=list)
     memory_id: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class RegisterRequest(BaseModel):
+    client_name: str
+    redirect_uris: list[str]

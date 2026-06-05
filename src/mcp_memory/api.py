@@ -1,4 +1,6 @@
 from mcp_memory.repository import save_memory
+from mcp_memory.auth import register_client
+from mcp_memory.models import RegisterRequest
 from fastapi import FastAPI, UploadFile
 import os
 import hashlib
@@ -8,6 +10,35 @@ app = FastAPI()
 
 UPLOAD_DIR = "/home/ec2-user/mcp-memory/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+@app.get("/.well-known/oauth-protected-resource")
+async def get_well_known():
+    return {
+        "resource": "https://adel-intelligence.com",
+        "authorization_servers": ["https://adel-intelligence.com"],
+    }
+
+
+@app.get("/.well-known/oauth-authorization-server")
+async def oauth_authorization_server():
+    return {
+        "issuer": "https://adel-intelligence.com",
+        "authorization_endpoint": "https://adel-intelligence.com/oauth/authorize",
+        "token_endpoint": "https://adel-intelligence.com/oauth/token",
+        "registration_endpoint": "https://adel-intelligence.com/oauth/register",
+        "code_challenge_methods_supported": ["S256"],
+        "response_types_supported": ["code"],
+        "grant_types_supported": ["authorization_code", "refresh_token"],
+    }
+
+
+@app.post("/oauth/register")
+async def register(body: RegisterRequest):
+    result = register_client(
+        client_name=body.client_name, redirect_uris=body.redirect_uris
+    )
+    return {"client_id": result["client_id"], "client_secret": result["client_secret"]}
 
 
 @app.post("/file")
