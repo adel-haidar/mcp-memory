@@ -1,5 +1,4 @@
 from mcp_memory.repository import save_memory
-from mcp_memory.models import Memory
 from fastapi import FastAPI, UploadFile
 import os
 import hashlib
@@ -26,7 +25,7 @@ async def upload_file(file: UploadFile):
     with open(filepath, "wb") as f:
         f.write(content)
 
-    memory = Memory(
+    saved = save_memory(
         title=f"Uploaded file: {file.filename}",
         content=(
             f"File uploaded at {timestamp}. "
@@ -35,7 +34,6 @@ async def upload_file(file: UploadFile):
         ),
         tags=["file-upload", file.filename.split(".")[-1]],
     )
-    saved = save_memory(memory)
 
     return {
         "status": "ok",
