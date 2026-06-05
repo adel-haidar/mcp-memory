@@ -52,11 +52,21 @@ async def oauth_authorization_server():
 
 
 @app.post("/oauth/register")
-async def register(body: RegisterRequest):
+async def register(request: Request):
+    body = await request.json()
     result = register_client(
-        client_name=body.client_name, redirect_uris=body.redirect_uris
+        client_name=body.get("client_name", "unknown"),
+        redirect_uris=body.get("redirect_uris", []),
     )
-    return {"client_id": result["client_id"], "client_secret": result["client_secret"]}
+    return {
+        "client_id": result["client_id"],
+        "client_secret": result["client_secret"],
+        "client_name": body.get("client_name", "unknown"),
+        "redirect_uris": body.get("redirect_uris", []),
+        "grant_types": body.get("grant_types", ["authorization_code", "refresh_token"]),
+        "response_types": body.get("response_types", ["code"]),
+        "token_endpoint_auth_method": body.get("token_endpoint_auth_method", "none"),
+    }
 
 
 @app.get("/oauth/authorize")
