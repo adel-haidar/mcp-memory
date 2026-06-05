@@ -1,7 +1,12 @@
 from mcp_memory.repository import save_memory
-from mcp_memory.auth import create_auth_code, register_client
+from mcp_memory.auth import (
+    create_auth_code,
+    exchange_code,
+    refresh_access_token,
+    register_client,
+)
 from mcp_memory.models import RegisterRequest
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, UploadFile, Form, HTTPException
 import os
 import hashlib
 import datetime
@@ -41,9 +46,6 @@ async def register(body: RegisterRequest):
     return {"client_id": result["client_id"], "client_secret": result["client_secret"]}
 
 
-from fastapi.responses import RedirectResponse
-
-
 @app.get("/oauth/authorize")
 async def authorize(
     client_id: str,
@@ -58,6 +60,30 @@ async def authorize(
         redirect_uri=redirect_uri,
     )
     return RedirectResponse(url=f"{redirect_uri}?code={code}&state={state}")
+
+
+@app.post("/oauth/token")
+async def token(
+    grant_type: str = Form(),
+    code: str = Form(""),
+    code_verifier: str = Form(""),
+    client_id: str = Form(""),
+    client_secret: str = Form(""),
+    refresh_token: str = Form(""),
+):
+    if grant_type == "authorization_code":
+        result = exchange_code(
+            code=code, code_verifier=code_verifier, client_id=client_id
+        )
+    elif grant_type == "refresh_token":
+        result = refresh_access_token(refresh_token=refresh_token, client_id=client_id)
+    else:
+        raise HTTPException(status_code=400, detail="unsupported_grant_type")
+
+    if not result:
+        raise HTTPException(status_code=400, detail="invalid_grant")
+
+    return result
 
 
 @app.post("/file")
