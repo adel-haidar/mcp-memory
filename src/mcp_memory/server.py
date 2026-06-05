@@ -1,8 +1,19 @@
 from mcp.server.fastmcp import FastMCP
 
+from mcp.server.auth.provider import TokenVerifier, AccessToken
+from mcp_memory.auth import validate_token as check_token
 from mcp_memory.repository import fetch_memory, init_db, save_memory, search_memories
 
-mcp = FastMCP("memory")
+
+class PostgresTokenVerifier(TokenVerifier):
+    async def verify_token(self, token: str) -> AccessToken | None:
+        client_id = check_token(token)
+        if not client_id:
+            return None
+        return AccessToken(client_id=client_id, scopes=[])
+
+
+mcp = FastMCP("memory", token_verifier=PostgresTokenVerifier())
 
 
 @mcp.tool()
