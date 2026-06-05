@@ -1,6 +1,6 @@
 from mcp_memory.repository import save_memory
-from mcp_memory.auth import register_client
-from mcp_memory.models import RegisterRequest
+from mcp_memory.auth import create_auth_code, register_client
+from mcp_memory.models import RegisterRequest, AuthorizationRequest
 from fastapi import FastAPI, UploadFile
 import os
 import hashlib
@@ -39,6 +39,25 @@ async def register(body: RegisterRequest):
         client_name=body.client_name, redirect_uris=body.redirect_uris
     )
     return {"client_id": result["client_id"], "client_secret": result["client_secret"]}
+
+
+from fastapi.responses import RedirectResponse
+
+
+@app.get("/oauth/authorize")
+async def authorize(
+    client_id: str,
+    redirect_uri: str,
+    code_challenge: str,
+    code_challenge_method: str,
+    state: str = "",
+):
+    code = create_auth_code(
+        client_id=client_id,
+        code_challenge=code_challenge,
+        redirect_uri=redirect_uri,
+    )
+    return RedirectResponse(url=f"{redirect_uri}?code={code}&state={state}")
 
 
 @app.post("/file")
