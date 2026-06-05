@@ -4,9 +4,11 @@ from mcp_memory.auth import (
     exchange_code,
     refresh_access_token,
     register_client,
+    validate_token,
 )
 from mcp_memory.models import RegisterRequest
-from fastapi import FastAPI, UploadFile, Form, HTTPException
+from fastapi import FastAPI, UploadFile, Form, HTTPException, Depends, Request
+from fastapi.responses import RedirectResponse
 import os
 import hashlib
 import datetime
@@ -15,6 +17,17 @@ app = FastAPI()
 
 UPLOAD_DIR = "/home/ec2-user/mcp-memory/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+async def require_auth(request: Request) -> str:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="missing token")
+    token = auth[7:]
+    client_id = validate_token(token)
+    if not client_id:
+        raise HTTPException(status_code=401, detail="invalid token")
+    return client_id
 
 
 @app.get("/.well-known/oauth-protected-resource")
@@ -87,7 +100,7 @@ async def token(
 
 
 @app.post("/file")
-async def upload_file(file: UploadFile):
+async def upload_file(file: UploadFile, client_id: str = Depends(require_auth)):
     content = await file.read()
 
     if not content:
