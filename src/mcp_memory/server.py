@@ -16,7 +16,7 @@ class PostgresTokenVerifier(TokenVerifier):
         client_id = check_token(token)
         if not client_id:
             return None
-        return AccessToken(client_id=client_id, scopes=[])
+        return AccessToken(token=token, client_id=client_id, scopes=[])
 
 
 mcp = FastMCP("memory", token_verifier=PostgresTokenVerifier(), auth=auth_settings)
