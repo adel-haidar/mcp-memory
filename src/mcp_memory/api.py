@@ -1,6 +1,6 @@
 from mcp_memory.repository import save_memory
 from mcp_memory.auth import create_auth_code, register_client
-from mcp_memory.models import RegisterRequest, AuthorizationRequest
+from mcp_memory.models import RegisterRequest
 from fastapi import FastAPI, UploadFile
 import os
 import hashlib
