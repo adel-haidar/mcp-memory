@@ -57,14 +57,14 @@ def save_memory(title: str, content: str, tags: list[str] | None = None) -> Memo
     tags = tags or []
     text = f"{title}\n{content}"
     embedding = _get_embedding(text)
-    embedding_str = str(embedding).replace(" ", "")
+    embedded_str = str(embedding).replace(" ", "")
 
     conn = _connect()
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO memories (memory_id, title, content, tags, created_at, embedding)
            VALUES (%s, %s, %s, %s, %s, %s)""",
-        (memory_id, title, content, ",".join(tags), created_at, str(embedding)),
+        (memory_id, title, content, ",".join(tags), created_at, embedded_str),
     )
     conn.commit()
     cur.close()
@@ -100,7 +100,7 @@ def search_memories(query: str) -> list[Memory]:
     conn = _connect()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute(
-            """SELECT *, embedding <=> %s::vector AS distance
+        """SELECT *, embedding <=> %s::vector AS distance
            FROM memories
            ORDER BY distance
            LIMIT 5""",
