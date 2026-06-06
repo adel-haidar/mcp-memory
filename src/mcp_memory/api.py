@@ -9,6 +9,7 @@ from mcp_memory.auth import (
 from mcp_memory.models import RegisterRequest
 from fastapi import FastAPI, UploadFile, Form, HTTPException, Depends, Request
 from fastapi.responses import RedirectResponse
+import io
 import os
 import hashlib
 import datetime
@@ -17,6 +18,30 @@ app = FastAPI()
 
 UPLOAD_DIR = "/home/ec2-user/mcp-memory/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+_PDF_CHUNK_SIZE = 4000
+
+
+def _extract_pdf_text(data: bytes) -> str:
+    from pypdf import PdfReader
+    reader = PdfReader(io.BytesIO(data))
+    return "\n\n".join(page.extract_text() or "" for page in reader.pages)
+
+
+def _chunk_text(text: str) -> list[str]:
+    if len(text) <= _PDF_CHUNK_SIZE:
+        return [text]
+    chunks = []
+    while text:
+        if len(text) <= _PDF_CHUNK_SIZE:
+            chunks.append(text)
+            break
+        split_at = text.rfind("\n", 0, _PDF_CHUNK_SIZE)
+        if split_at <= 0:
+            split_at = _PDF_CHUNK_SIZE
+        chunks.append(text[:split_at].strip())
+        text = text[split_at:].strip()
+    return chunks
 
 
 async def require_auth(request: Request) -> str:
@@ -124,19 +149,32 @@ async def upload_file(file: UploadFile, client_id: str = Depends(require_auth)):
     with open(filepath, "wb") as f:
         f.write(content)
 
-    saved = save_memory(
-        title=f"Uploaded file: {file.filename}",
-        content=(
-            f"File uploaded at {timestamp}. "
-            f"Path: {filepath}. Size: {len(content)} bytes. "
-            f"Hash: {file_hash}."
-        ),
-        tags=["file-upload", file.filename.split(".")[-1]],
-    )
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+
+    if ext == "pdf":
+        text = _extract_pdf_text(content)
+        chunks = _chunk_text(text)
+        total = len(chunks)
+        first_saved = None
+        for i, chunk in enumerate(chunks):
+            title = file.filename if total == 1 else f"{file.filename} ({i + 1}/{total})"
+            saved = save_memory(title=title, content=chunk, tags=["file-upload", "pdf"])
+            if first_saved is None:
+                first_saved = saved
+    else:
+        first_saved = save_memory(
+            title=f"Uploaded file: {file.filename}",
+            content=(
+                f"File uploaded at {timestamp}. "
+                f"Path: {filepath}. Size: {len(content)} bytes. "
+                f"Hash: {file_hash}."
+            ),
+            tags=["file-upload", ext],
+        )
 
     return {
         "status": "ok",
-        "memory_id": saved.memory_id,
+        "memory_id": first_saved.memory_id,
         "filename": filename,
         "size": len(content),
     }
